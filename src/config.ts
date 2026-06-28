@@ -139,6 +139,44 @@ export function resolvePreset(config: NormalizedConfig, name?: string): Normaliz
 	return config.presets[key];
 }
 
+/** Format a normalized config as a human-readable preset listing. */
+export function formatPresetList(config: NormalizedConfig): string {
+	const names = Object.keys(config.presets);
+	if (names.length === 0) {
+		return "No MoA presets configured. Use /moa-configure to create one.";
+	}
+	const lines = names.map((name) => {
+		const p = config.presets[name];
+		const marker = name === config.default_preset ? " (default)" : "";
+		const flag = p.enabled ? "" : " [disabled]";
+		const refs = p.reference_models.length === 0
+			? "(no refs; aggregator alone)"
+			: p.reference_models.map((s) => `${s.provider}/${s.model}`).join(", ");
+		return `- ${name}${marker}${flag}\n  refs: ${refs}\n  agg:  ${p.aggregator.provider}/${p.aggregator.model}`;
+	});
+	return `MoA presets:\n${lines.join("\n")}`;
+}
+
+/** Set or replace a preset on a raw config object (returns a new object). */
+export function upsertPreset(raw: MoaConfig, name: string, preset: Preset): MoaConfig {
+	const presets = { ...(raw.presets ?? {}) };
+	presets[name] = preset;
+	const defaultPreset = raw.default_preset ?? name;
+	return { default_preset: defaultPreset, presets };
+}
+
+/** Remove a preset from a raw config object (returns a new object). */
+export function removePreset(raw: MoaConfig, name: string): MoaConfig {
+	const presets = { ...(raw.presets ?? {}) };
+	delete presets[name];
+	let defaultPreset = raw.default_preset;
+	// If we removed the default, fall back to the first remaining or "default".
+	if (defaultPreset === name || !presets[defaultPreset ?? ""]) {
+		defaultPreset = Object.keys(presets)[0] ?? "default";
+	}
+	return { default_preset: defaultPreset, presets };
+}
+
 async function readJson(file: string): Promise<MoaConfig | null> {
 	try {
 		const txt = await readFile(file, "utf8");

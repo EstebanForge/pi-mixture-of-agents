@@ -12,7 +12,7 @@
  */
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { TurnCache } from "../src/dedup";
-import { loadConfig, resolvePreset } from "../src/config";
+import { loadConfig, resolvePreset, formatPresetList, upsertPreset, removePreset, saveConfig, normalizePreset } from "../src/config";
 import { runPresetTurn } from "../src/engine";
 import { makeCallSlot } from "../src/slots";
 import { trimForReferences } from "../src/transcript";
@@ -56,6 +56,28 @@ export default async function (pi: ExtensionAPI) {
 		description: "Run a one-shot Mixture of Agents pass over your prompt",
 		handler: async (args, ctx) => {
 			await runMoaCommand(args, ctx, pi);
+		},
+	});
+
+	pi.registerCommand("moa-list", {
+		description: "List configured MoA presets",
+		handler: async (_args, ctx) => {
+			const cfg = await loadConfig();
+			ctx.ui.notify(formatPresetList(cfg), "info");
+		},
+	});
+
+	pi.registerCommand("moa-configure", {
+		description: "Create or update an MoA preset interactively",
+		handler: async (args, ctx) => {
+			await configurePreset(args.trim(), ctx);
+		},
+	});
+
+	pi.registerCommand("moa-delete", {
+		description: "Delete an MoA preset",
+		handler: async (args, ctx) => {
+			await deletePreset(args.trim(), ctx);
 		},
 	});
 
@@ -164,4 +186,111 @@ function readTranscript(ctx: ExtensionContext): unknown[] {
 	if (Array.isArray(branch)) return branch;
 	const entries = typeof sm.getEntries === "function" ? sm.getEntries() : undefined;
 	return Array.isArray(entries) ? entries : [];
+}
+
+/** Enumerate models available in the live catalog as "provider/model" strings. */
+function availableModelLabels(ctx: ExtensionContext): string[] {
+	const all = (ctx.modelRegistry as unknown as { getAll?: () => Array<{ provider: string; id: string }> }).getAll?.() ?? [];
+	return all.map((m) => `${m.provider}/${m.id}`);
+}
+
+/** Pick a slot interactively. Returns undefined if the user cancels. */
+async function pickSlot(
+	ctx: ExtensionContext,
+	title: string,
+	options: string[],
+): Promise<{ provider: string; model: string } | undefined> {
+	if (options.length === 0) {
+		ctx.ui.notify("No models available in the catalog.", "warning");
+		return undefined;
+	}
+	const choice = await ctx.ui.select(title, options);
+	if (!choice) return undefined;
+	const idx = choice.indexOf("/");
+	if (idx <= 0) return undefined;
+	return { provider: choice.slice(0, idx), model: choice.slice(idx + 1) };
+}
+
+async function configurePreset(nameArg: string, ctx: ExtensionContext): Promise<void> {
+	if (!ctx.hasUI) {
+		ctx.ui.notify("/moa-configure requires an interactive terminal.", "warning");
+		return;
+	}
+
+	const name = nameArg || (await ctx.ui.input("Preset name", "default")) || "";
+	if (!name) return;
+
+	const raw = await loadConfigRaw();
+	const existing = raw.presets?.[name];
+
+	const options = availableModelLabels(ctx);
+
+	// Aggregator first (required).
+	const aggregator = await pickSlot(ctx, `Aggregator for "${name}"`, options);
+	if (!aggregator) return;
+
+	// References: ask how many, then pick each. Keep it simple (reviewer nit).
+	const refCountStr = await ctx.ui.input(
+		"Number of reference models (0 = aggregator alone)",
+		String(existing?.reference_models?.length ?? 1),
+	);
+	const refCount = Math.max(0, Math.min(5, Number(refCountStr) || 0));
+
+	const reference_models = [];
+	for (let i = 0; i < refCount; i++) {
+		const slot = await pickSlot(ctx, `Reference ${i + 1} for "${name}"`, options);
+		if (!slot) break;
+		reference_models.push(slot);
+	}
+
+	const enabled = await ctx.ui.confirm(`Enable "${name}"?`, "Disabled presets run the aggregator alone.");
+
+	const preset = { reference_models, aggregator, enabled };
+	try {
+		normalizePreset(name, preset); // validate (incl. recursion guard) before saving
+	} catch (e) {
+		ctx.ui.notify(`Invalid preset: ${e instanceof Error ? e.message : String(e)}`, "error");
+		return;
+	}
+
+	const updated = upsertPreset(raw, name, preset);
+	await saveConfig(updated);
+	ctx.ui.notify(`Saved preset "${name}". /reload or restart to pick up catalog changes.`, "info");
+}
+
+async function deletePreset(nameArg: string, ctx: ExtensionContext): Promise<void> {
+	const raw = await loadConfigRaw();
+	const names = Object.keys(raw.presets ?? {});
+	if (names.length === 0) {
+		ctx.ui.notify("No MoA presets to delete.", "info");
+		return;
+	}
+
+	const name = nameArg || (ctx.hasUI ? await ctx.ui.select("Delete which preset?", names) : nameArg);
+	if (!name || !raw.presets?.[name]) {
+		if (name) ctx.ui.notify(`No preset named "${name}".`, "warning");
+		return;
+	}
+
+	if (ctx.hasUI) {
+		const ok = await ctx.ui.confirm(`Delete "${name}"?`, "This cannot be undone.");
+		if (!ok) return;
+	}
+
+	const updated = removePreset(raw, name);
+	await saveConfig(updated);
+	ctx.ui.notify(`Deleted preset "${name}". /reload or restart to pick up catalog changes.`, "info");
+}
+
+/** Load the raw (un-normalized) config so upsert/remove preserve user formatting. */
+async function loadConfigRaw() {
+	const { readFile } = await import("node:fs/promises");
+	const path = await import("node:path");
+	const os = await import("node:os");
+	const file = path.join(os.homedir(), ".pi", "agent", "moa.json");
+	try {
+		return JSON.parse(await readFile(file, "utf8")) as import("../src/types").MoaConfig;
+	} catch {
+		return { default_preset: "default", presets: {} } as import("../src/types").MoaConfig;
+	}
 }

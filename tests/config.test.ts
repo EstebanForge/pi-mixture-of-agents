@@ -3,10 +3,13 @@ import {
 	DEFAULTS,
 	assertNotRecursive,
 	defaultConfig,
+	formatPresetList,
 	loadConfig,
 	normalizeConfig,
 	normalizePreset,
+	removePreset,
 	resolvePreset,
+	upsertPreset,
 } from "../src/config";
 import { ConfigError, type MoaConfig, type Preset, RecursionError } from "../src/types";
 
@@ -176,5 +179,65 @@ describe("loadConfig (merge)", () => {
 		expect(cfg.presets).toEqual({});
 		const { rm } = await import("node:fs/promises");
 		await rm(tmp, { recursive: true, force: true });
+	});
+});
+
+describe("formatPresetList", () => {
+	it("reports when no presets exist", () => {
+		expect(formatPresetList(normalizeConfig(null))).toContain("No MoA presets");
+	});
+
+	it("lists presets with refs, aggregator, default marker, disabled flag", () => {
+		const cfg = normalizeConfig({
+			default_preset: "on",
+			presets: {
+				on: validPreset,
+				off: { ...validPreset, enabled: false, reference_models: [] },
+			},
+		});
+		const out = formatPresetList(cfg);
+		expect(out).toContain("on (default)");
+		expect(out).toContain("off [disabled]");
+		expect(out).toContain("agg:  claude-bridge/claude-opus-4-8");
+		expect(out).toContain("refs: google/gemini-2.5-flash");
+		expect(out).toContain("(no refs; aggregator alone)");
+	});
+});
+
+describe("upsertPreset / removePreset", () => {
+	const base: MoaConfig = {
+		default_preset: "default",
+		presets: { default: validPreset },
+	};
+
+	it("upsertPreset adds a new preset without mutating the input", () => {
+		const next = upsertPreset(base, "review", { ...validPreset, enabled: false });
+		expect(Object.keys(next.presets!)).toEqual(["default", "review"]);
+		// input untouched
+		expect(Object.keys(base.presets!)).toEqual(["default"]);
+		// first upsert with no prior default keeps existing default
+		expect(next.default_preset).toBe("default");
+	});
+
+	it("upsertPreset sets default to the new name when no default existed", () => {
+		const empty: MoaConfig = { presets: {} };
+		const next = upsertPreset(empty, "solo", validPreset);
+		expect(next.default_preset).toBe("solo");
+	});
+
+	it("removePreset removes and falls back default when needed", () => {
+		const next = removePreset(
+			{ default_preset: "default", presets: { default: validPreset, other: validPreset } },
+			"default",
+		);
+		expect(next.presets).toHaveProperty("other");
+		expect(next.presets).not.toHaveProperty("default");
+		expect(next.default_preset).toBe("other");
+	});
+
+	it("removePreset leaves an empty presets map and placeholder default when last removed", () => {
+		const next = removePreset(base, "default");
+		expect(next.presets).toEqual({});
+		expect(next.default_preset).toBe("default");
 	});
 });
