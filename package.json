@@ -51,10 +51,15 @@
     }
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "^0.80.2",
     "@earendil-works/pi-ai": "^0.80.2",
+    "@earendil-works/pi-coding-agent": "^0.80.2",
     "@types/node": "^22.0.0",
     "typebox": "*",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "vitest": "^4.1.9"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   }
 }
