@@ -55,6 +55,31 @@ export interface NormalizedConfig {
 	presets: Record<string, NormalizedPreset>;
 }
 
+/** Outcome of a single reference-model call. */
+export type ReferenceResult =
+	| { ok: true; slot: Slot; text: string }
+	| { ok: false; slot: Slot; error: string };
+
+/**
+ * Calls a single model slot with a message list and returns its text.
+ * Injected into the engine so the core stays pure and testable.
+ */
+export type CallSlot = (
+	slot: Slot,
+	instruction: string,
+	opts: { temperature?: number; maxTokens?: number; signal?: AbortSignal },
+) => Promise<string>;
+
+/** Minimal subset of Pi's ExtensionContext used for credential resolution. */
+export interface SlotContext {
+	modelRegistry: {
+		getApiKeyAndHeaders(model: unknown): Promise<
+			| { ok: true; apiKey?: string; headers?: Record<string, string>; env?: Record<string, string> }
+			| { ok: false; error: string }
+		>;
+	};
+}
+
 /** Error thrown when a preset references itself recursively. */
 export class RecursionError extends Error {
 	constructor(slot: Slot) {
