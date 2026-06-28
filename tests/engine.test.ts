@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { aggregate, runPresetTurn, runReferences } from "../src/engine";
-import { GUIDANCE_HEADER } from "../src/prompts";
-import type { AdvisoryMessage } from "../src/transcript";
-import type { CallSlot, NormalizedPreset, ReferenceResult, Slot } from "../src/types";
+import { aggregate, runPresetTurn, runReferences } from "../lib/engine";
+import { GUIDANCE_HEADER } from "../lib/prompts";
+import type { AdvisoryMessage } from "../lib/transcript";
+import type { CallSlot, NormalizedPreset, ReferenceResult, Slot } from "../lib/types";
 
 const A: Slot = { provider: "google", model: "gemini-2.5-flash" };
 const B: Slot = { provider: "deepseek", model: "deepseek-v4-pro" };

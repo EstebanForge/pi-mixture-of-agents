@@ -11,14 +11,14 @@
  * and calls the aggregator (the acting model) with the full tool schema.
  */
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { TurnCache } from "../src/dedup";
-import { loadConfig, resolvePreset, formatPresetList, upsertPreset, removePreset, saveConfig, normalizePreset } from "../src/config";
-import { runPresetTurn } from "../src/engine";
-import { makeCallSlot } from "../src/slots";
-import { trimForReferences } from "../src/transcript";
-import type { AdvisoryMessage } from "../src/transcript";
-import type { NormalizedConfig } from "../src/types";
-import { makeMoaStreamFacade, type CtxRef } from "../src/stream-facade";
+import { TurnCache } from "../lib/dedup";
+import { loadConfig, resolvePreset, formatPresetList, upsertPreset, removePreset, saveConfig, normalizePreset } from "../lib/config";
+import { runPresetTurn } from "../lib/engine";
+import { makeCallSlot } from "../lib/slots";
+import { trimForReferences } from "../lib/transcript";
+import type { AdvisoryMessage } from "../lib/transcript";
+import type { NormalizedConfig } from "../lib/types";
+import { makeMoaStreamFacade, type CtxRef } from "../lib/stream-facade";
 
 const PROVIDER_NAME = "moa";
 
@@ -46,6 +46,12 @@ export default async function (pi: ExtensionAPI) {
 		ctxRef.current = ctx;
 		// Re-read on each session in case the user edited moa.json.
 		await refreshConfig();
+	});
+
+	// Drop the stale ctx between sessions so a mid-/reload invocation cannot
+	// accidentally use a torn-down ExtensionContext.
+	pi.on("session_shutdown", () => {
+		ctxRef.current = null;
 	});
 
 	// New user turn boundary: clear the per-turn reference cache so refs run
@@ -101,7 +107,7 @@ export default async function (pi: ExtensionAPI) {
 			getConfig: deps.getConfig,
 			ctxRef: deps.ctxRef,
 			cache: deps.cache,
-			onProgress: onProgress as any,
+			onProgress,
 		});
 
 		pi.registerProvider(PROVIDER_NAME, {
@@ -289,8 +295,8 @@ async function loadConfigRaw() {
 	const os = await import("node:os");
 	const file = path.join(os.homedir(), ".pi", "agent", "moa.json");
 	try {
-		return JSON.parse(await readFile(file, "utf8")) as import("../src/types").MoaConfig;
+		return JSON.parse(await readFile(file, "utf8")) as import("../lib/types").MoaConfig;
 	} catch {
-		return { default_preset: "default", presets: {} } as import("../src/types").MoaConfig;
+		return { default_preset: "default", presets: {} } as import("../lib/types").MoaConfig;
 	}
 }

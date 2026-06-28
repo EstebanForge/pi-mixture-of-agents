@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { trimForReferences } from "../src/transcript";
+import { trimForReferences } from "../lib/transcript";
 
 describe("trimForReferences", () => {
 	it("keeps user and assistant text only", () => {

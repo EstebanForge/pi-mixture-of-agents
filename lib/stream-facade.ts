@@ -25,16 +25,16 @@
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 import { TurnCache, signature } from "./dedup";
 import { runReferences } from "./engine";
-import { GUIDANCE_HEADER, hasUsableGuidance } from "./prompts";
+import { GUIDANCE_HEADER, SESSION_INSTRUCTION, hasUsableGuidance } from "./prompts";
 import { callAggregator, makeCallSlot } from "./slots";
-import { trimForReferences } from "./transcript";
+import { trimForReferences, renderAdvisoryInstruction } from "./transcript";
 import type { NormalizedConfig, NormalizedPreset, ReferenceResult, SlotContext } from "./types";
 
 /** Mutable holder for the live ExtensionContext, updated on session_start. */
 export type CtxRef = { current: SlotContext | null };
 
-/** Status relay: optional callback for fan-out progress (UIsetStatus). */
-export type OnProgress = (text: string) => void;
+/** Status relay: optional callback for fan-out progress. `undefined` clears. */
+export type OnProgress = (text: string | undefined) => void;
 
 export interface FacadeDeps {
 	/** Live config (re-read or stashed by caller). */
@@ -80,21 +80,29 @@ export function makeMoaStreamFacade(deps: FacadeDeps) {
 					onProgress: deps.onProgress,
 				});
 
+				// Session mode: the aggregator IS the acting model. Forward Pi's
+				// system prompt (tool-use guidelines, project context) and prepend
+				// the MoA session instruction so the aggregator knows how to use
+				// the injected reference context. Without this it ran blind.
+				const baseSystem = typeof context?.systemPrompt === "string" ? context.systemPrompt : "";
+				const systemPrompt = baseSystem ? `${baseSystem}\n\n${SESSION_INSTRUCTION}` : SESSION_INSTRUCTION;
+
 				deps.onProgress?.(`aggregating: ${preset.aggregator.provider}/${preset.aggregator.model}`);
 				const resp = await callAggregator(preset.aggregator, ctx, {
 					messages: finalMessages,
 					tools,
+					systemPrompt,
 					temperature: preset.aggregator_temperature,
 					maxTokens: preset.max_tokens,
 					signal,
 				});
 
 				emitAssistant(stream, resp, model);
-				deps.onProgress?.(undefined as any);
+				deps.onProgress?.(undefined);
 			} catch (e) {
 				const msg = e instanceof Error ? e.message : String(e);
 				emitError(stream, msg);
-				deps.onProgress?.(undefined as any);
+				deps.onProgress?.(undefined);
 			}
 		})();
 
@@ -135,9 +143,7 @@ async function buildAggregatorMessages(args: {
 	if (cached) {
 		refs = cached;
 	} else {
-		const instruction = advisory
-			.map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content.map((c) => c.text).join("\n")}`)
-			.join("\n\n");
+		const instruction = renderAdvisoryInstruction(advisory);
 		const call = makeCallSlot(ctx);
 		refs = await runReferences({
 			slots: preset.reference_models,
@@ -183,6 +189,21 @@ function appendGuidanceTail(messages: any[], guidance: string): any[] {
 	return copy;
 }
 
+/**
+ * Decide the terminal event for a finalized aggregator response.
+ * `done` accepts only stop/length/toolUse; error/aborted must use `error`.
+ * Exported for unit testing of the branching logic.
+ */
+export function terminalEventFor(stopReason: string | undefined):
+	| { kind: "done"; reason: "stop" | "length" | "toolUse" }
+	| { kind: "error"; reason: "error" | "aborted" } {
+	const reason = (stopReason ?? "stop") as string;
+	if (reason === "error" || reason === "aborted") {
+		return { kind: "error", reason };
+	}
+	return { kind: "done", reason: reason as "stop" | "length" | "toolUse" };
+}
+
 /** Emit a successful AssistantMessage through the stream (v1: non-streaming). */
 function emitAssistant(stream: any, resp: any, model: any) {
 	const partial = {
@@ -203,7 +224,12 @@ function emitAssistant(stream: any, resp: any, model: any) {
 		}
 		idx++;
 	}
-	stream.push({ type: "done", reason: resp.stopReason ?? "stop", message: partial });
+	const terminal = terminalEventFor(resp.stopReason);
+	if (terminal.kind === "error") {
+		stream.push({ type: "error", reason: terminal.reason, error: partial });
+	} else {
+		stream.push({ type: "done", reason: terminal.reason, message: partial });
+	}
 	stream.end(partial);
 }
 

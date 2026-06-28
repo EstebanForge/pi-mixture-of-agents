@@ -92,7 +92,7 @@ Slots are explicit `{provider, model}` pairs, so you can mix providers and use m
 
 ## Why
 
-On HermesBench, a two-model MoA preset (`claude-opus-4.8` aggregating over a `gpt-5.5` reference) outscores either model alone: **0.8202** MoA vs 0.7607 opus vs 0.7412 gpt-5.5. Aggregating a second perspective lifts quality on hard tasks rather than just averaging the two.
+Hermes's own docs report that on their HermesBench, a two-model MoA preset outscores either component model alone: MoA **0.8202** vs `claude-opus-4.8` at 0.7607 vs `gpt-5.5` at 0.7412. The takeaway is that aggregating a second perspective lifts quality on hard tasks rather than just averaging the two. (These are Hermes's published numbers, not benchmarks we ran; see their [Mixture of Agents docs](https://hermes-agent.nousresearch.com/docs/user-guide/features/mixture-of-agents).)
 
 ## License
 

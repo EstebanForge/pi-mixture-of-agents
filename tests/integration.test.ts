@@ -5,9 +5,9 @@
  * Run: MOA_INTEGRATION=1 npx vitest run tests/integration.test.ts
  */
 import { describe, expect, it } from "vitest";
-import { loadConfig, resolvePreset } from "../src/config";
-import { runPresetTurn } from "../src/engine";
-import { makeCallSlot } from "../src/slots";
+import { loadConfig, resolvePreset } from "../lib/config";
+import { runPresetTurn } from "../lib/engine";
+import { makeCallSlot } from "../lib/slots";
 
 const skip = process.env.MOA_INTEGRATION !== "1";
 

@@ -27,6 +27,7 @@
   "type": "module",
   "files": [
     "extensions",
+    "lib",
     "README.md"
   ],
   "pi": {

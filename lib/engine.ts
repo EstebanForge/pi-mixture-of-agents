@@ -12,6 +12,7 @@
  *     and guidance is omitted
  */
 import { aggregatorPrompt, hasUsableGuidance, wrapGuidance } from "./prompts";
+import { renderAdvisoryInstruction } from "./transcript";
 import type { AdvisoryMessage } from "./transcript";
 import type { CallSlot, NormalizedPreset, ReferenceResult, Slot } from "./types";
 
@@ -127,9 +128,7 @@ export async function runPresetTurn(args: {
 
 	// The user-turn instruction refs see: a flattened, role-labeled view of
 	// the advisory transcript. Deterministic -> pairs with dedup.signature.
-	const instruction = advisory
-		.map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content.map((c) => c.text).join("\n")}`)
-		.join("\n\n");
+	const instruction = renderAdvisoryInstruction(advisory);
 
 	const refs = preset.enabled
 		? await runReferences({

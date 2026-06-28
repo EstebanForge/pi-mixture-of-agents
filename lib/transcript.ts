@@ -51,3 +51,14 @@ export function trimForReferences(messages: readonly AnyMessage[] | null | undef
 	}
 	return out;
 }
+
+/**
+ * Render an advisory transcript as a single instruction string refs see:
+ * role-labeled (User/Assistant), turns joined by blank lines. Deterministic
+ * so the dedup signature is stable. Shared by the one-shot and session paths.
+ */
+export function renderAdvisoryInstruction(advisory: readonly AdvisoryMessage[]): string {
+	return advisory
+		.map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content.map((c) => c.text).join("\n")}`)
+		.join("\n\n");
+}

@@ -29,7 +29,7 @@ const ONE_SHOT_INSTRUCTION = [
 ].join(" ");
 
 /** MoAChatCompletions.create aggregator instruction: it IS the acting model. */
-const SESSION_INSTRUCTION = [
+export const SESSION_INSTRUCTION = [
 	"You are the acting model in a Mixture of Agents process.",
 	"Reference model analyses are provided below as background context.",
 	"Answer the user or call tools directly as needed; do not just summarize the references.",

@@ -13,5 +13,9 @@
     "tsBuildInfoFile": "./node_modules/.cache/pi-mixture-of-agents.tsbuildinfo",
     "rootDir": "."
   },
-  "include": ["extensions/**/*.ts", "src/**/*.ts", "tests/**/*.ts"]
+  "include": [
+    "extensions/**/*.ts",
+    "lib/**/*.ts",
+    "tests/**/*.ts"
+  ]
 }

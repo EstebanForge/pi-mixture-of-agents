@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { TurnCache, signature } from "../src/dedup";
-import type { AdvisoryMessage } from "../src/transcript";
-import type { Slot } from "../src/types";
+import { TurnCache, signature } from "../lib/dedup";
+import type { AdvisoryMessage } from "../lib/transcript";
+import type { Slot } from "../lib/types";
 
 const slots: Slot[] = [
 	{ provider: "google", model: "gemini-2.5-flash" },

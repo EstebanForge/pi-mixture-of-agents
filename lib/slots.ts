@@ -87,6 +87,7 @@ export async function callAggregator(
 	args: {
 		messages: PiMessage[];
 		tools?: unknown;
+		systemPrompt?: string;
 		temperature?: number;
 		maxTokens?: number;
 		signal?: AbortSignal;
@@ -101,9 +102,16 @@ export async function callAggregator(
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	if (auth.ok === false) throw new Error(auth.error);
 
+	// `messages` / `tools` come from the Pi Context shape; the `as never` is a
+	// pragmatic bridge across pi-ai's generic Message/Tool types. The fields
+	// themselves are structurally compatible at runtime.
 	return complete(
 		model,
-		{ messages: args.messages as never, tools: args.tools as never },
+		{
+			messages: args.messages as never,
+			tools: args.tools as never,
+			systemPrompt: args.systemPrompt,
+		} as never,
 		{
 			apiKey: auth.apiKey,
 			headers: auth.headers,

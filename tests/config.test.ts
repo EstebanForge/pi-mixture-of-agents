@@ -10,8 +10,8 @@ import {
 	removePreset,
 	resolvePreset,
 	upsertPreset,
-} from "../src/config";
-import { ConfigError, type MoaConfig, type Preset, RecursionError } from "../src/types";
+} from "../lib/config";
+import { ConfigError, type MoaConfig, type Preset, RecursionError } from "../lib/types";
 
 const validPreset: Preset = {
 	reference_models: [{ provider: "google", model: "gemini-2.5-flash" }],
