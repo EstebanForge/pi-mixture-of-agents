@@ -188,3 +188,53 @@ describe("runPresetTurn", () => {
 		expect(refs[1].ok).toBe(false);
 	});
 });
+
+describe("runtime recursion guard", () => {
+	// moa_loop.py:142 safety net behind the config-time guard. A moa:* slot
+	// must surface as a skipped/failed reference, never a hard crash.
+	it("a moa:* reference slot surfaces as a labelled failure (not a crash)", async () => {
+		const moaSlot: Slot = { provider: "moa", model: "default" };
+		// A call impl that mirrors makeCallSlot's guard (avoids needing the live
+		// model registry). The engine sees the throw and folds it into results.
+		const call: CallSlot = async (slot) => {
+			if (slot.provider.toLowerCase() === "moa") {
+				throw new Error("[skipped: MoA presets cannot recursively reference MoA]");
+			}
+			return "ok";
+		};
+		const results = await runReferences({ slots: [moaSlot], instruction: "x", call });
+		expect(results).toHaveLength(1);
+		expect(results[0].ok).toBe(false);
+		if (!results[0].ok) expect(results[0].error).toContain("[skipped:");
+	});
+
+	it("a mix of moa:* and normal slots runs the normal one and skips the recursive one", async () => {
+		const moaSlot: Slot = { provider: "moa", model: "default" };
+		const normal: Slot = { provider: "google", model: "gemini-2.5-flash" };
+		const call: CallSlot = async (slot) => {
+			if (slot.provider.toLowerCase() === "moa") {
+				throw new Error("[skipped: MoA presets cannot recursively reference MoA]");
+			}
+			return "real-output";
+		};
+		const results = await runReferences({ slots: [moaSlot, normal], instruction: "x", call });
+		expect(results[0].ok).toBe(false);
+		expect(results[1].ok).toBe(true);
+	});
+
+	it("aggregate still runs when every reference was skipped (recursion or otherwise)", async () => {
+		const moaSlot: Slot = { provider: "moa", model: "default" };
+		const call: CallSlot = async (slot) => {
+			if (slot.provider.toLowerCase() === "moa") throw new Error("[skipped]");
+			return "agg-answer";
+		};
+		const out = await aggregate({
+			refs: [{ ok: false, slot: moaSlot, error: "[skipped]" }],
+			mode: "session",
+			instruction: "Q",
+			call,
+			aggregator: AGG,
+		});
+		expect(out).toBe("agg-answer");
+	});
+});

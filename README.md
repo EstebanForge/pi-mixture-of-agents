@@ -4,17 +4,26 @@
 
 Ports the MoA technique from [Hermes Agent](https://github.com/NousResearch/hermes-agent) (`agent/moa_loop.py`). Not an LLM; an orchestration layer over models you already have configured.
 
-> **Status: v0.1 (spike).** Only the virtual-provider facade is wired. The `streamSimple` mechanism is proven (ref fan-out → aggregator → tool-call round-trip verified), but config files, preset management commands, and `/moa` are still landing.
-
 ## Install
 
 ```
 pi install npm:@estebanforge/pi-mixture-of-agents
 ```
 
-Then `/reload` in Pi (or restart), and pick a preset from `/model` under the `Mixture of Agents` provider, or use `/moa <prompt>` for a one-shot.
+Then `/reload` in Pi (or restart), and pick a preset from `/model` under the `Mixture of Agents` provider, use `/moa <prompt>` for a one-shot, or manage presets with `/moa-list` / `/moa-configure` / `/moa-delete`.
 
 Reference and aggregator models must already be configured in Pi (`~/.pi/agent/models.json` or a provider with credentials). The extension does not ship API keys.
+
+## Commands
+
+| Command | Description |
+| --- | --- |
+| `/moa <prompt>` | One-shot pass: runs refs + aggregator once over your prompt, injects guidance as a user message, and leaves the active model unchanged |
+| `/moa-list` | Print every configured preset (refs, aggregator, default marker, enabled flag) |
+| `/moa-configure [name]` | Interactively create or update a preset: pick aggregator, 0-5 references from the live catalog, and the enabled toggle |
+| `/moa-delete [name]` | Confirm and remove a preset; `default_preset` falls back to the next remaining |
+
+> Slash commands only dispatch in an interactive Pi session (not in `pi -p` print mode). Selecting `moa/<preset>` from `/model` works in every mode.
 
 ## How it works
 
@@ -73,9 +82,7 @@ Presets live in `~/.pi/agent/moa.json` (project override at `.pi/moa.json`):
 }
 ```
 
-Slots are explicit `{provider, model}` pairs, so you can mix providers and use multiple models from the same provider.
-
-> Config file, `moa-list|configure|delete` commands, and the `/moa` command are Phase 1/3/5 of the plan; the spike currently hardcodes a single `google/gemini-2.5-flash` reference and aggregator under the `moa/test` preset.
+Slots are explicit `{provider, model}` pairs, so you can mix providers and use multiple models from the same provider. Use `/moa-configure` to build a preset interactively from the models already in your catalog.
 
 ## v1 limitations
 
