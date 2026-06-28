@@ -1,0 +1,60 @@
+{
+  "name": "@estebanforge/pi-mixture-of-agents",
+  "version": "0.1.0",
+  "description": "Mixture of Agents for Pi. Registers a virtual `moa` provider (presets selectable in /model) and a `/moa` one-shot command. Each preset fans out N reference models in parallel over a trimmed transcript, an aggregator synthesizes their outputs into private guidance appended at the tail, and the aggregator becomes the acting model with the full tool schema intact. Ports Hermes Agent's MoA technique (https://github.com/NousResearch/hermes-agent).",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "mixture-of-agents",
+    "moa",
+    "multi-model",
+    "aggregator",
+    "ensemble",
+    "llm-orchestration",
+    "virtual-provider",
+    "hermes"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "EstebanForge",
+    "email": "esteban@attitude.cl",
+    "url": "https://actitud.xyz"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EstebanForge/pi-mixture-of-agents.git"
+  },
+  "type": "module",
+  "files": [
+    "extensions",
+    "README.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-ai": {
+      "optional": true
+    },
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "typebox": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.80.2",
+    "@earendil-works/pi-ai": "^0.80.2",
+    "@types/node": "^22.0.0",
+    "typebox": "*",
+    "typescript": "^5.8.0"
+  }
+}
