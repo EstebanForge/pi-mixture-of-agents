@@ -1,26 +1,56 @@
 /**
  * pi-mixture-of-agents — extension entry.
  *
- * Mounts:
- *   - /moa one-shot command (Phase 3)
- *   - moa/test spike provider (Phase 0; Phase 4 replaces it with config-driven presets)
+ * Registers:
+ *   - the virtual `moa` provider (presets selectable as `moa/<preset>` in /model)
+ *   - the `/moa` one-shot command
  *
- * The /moa command runs the engine once over the current transcript, in
- * one-shot mode (advisory guidance), and injects the result + the user's
- * prompt as a user message. It never switches the active model.
+ * Provider models are derived from moa.json presets. When a preset is the
+ * active model, Pi calls the streamSimple facade, which fans out the preset's
+ * references, appends their outputs at the tail of the last user message,
+ * and calls the aggregator (the acting model) with the full tool schema.
  */
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { TurnCache } from "../src/dedup";
 import { loadConfig, resolvePreset } from "../src/config";
 import { runPresetTurn } from "../src/engine";
 import { makeCallSlot } from "../src/slots";
 import { trimForReferences } from "../src/transcript";
 import type { AdvisoryMessage } from "../src/transcript";
-import { registerSpike } from "./spike-facade";
+import type { NormalizedConfig } from "../src/types";
+import { makeMoaStreamFacade, type CtxRef } from "../src/stream-facade";
 
-export default function (pi: ExtensionAPI) {
-	// Phase 0 spike — keeps the streamSimple facade mechanism exercised.
-	// Phase 4 will replace this with config-driven moa/<preset> models.
-	registerSpike(pi);
+const PROVIDER_NAME = "moa";
+
+export default async function (pi: ExtensionAPI) {
+	// Mutable holder for the live ExtensionContext. streamSimple has no ctx
+	// in its signature, so the facade reads through this ref.
+	const ctxRef: CtxRef = { current: null };
+	const configState: { current: NormalizedConfig | null } = { current: null };
+	const cache = new TurnCache();
+
+	async function refreshConfig(): Promise<NormalizedConfig> {
+		const cfg = await loadConfig();
+		configState.current = cfg;
+		return cfg;
+	}
+
+	// Register the virtual provider in the factory body so it is flushed
+	// before the model catalog is built (and before session_start). The docs
+	// are explicit: provider registrations queued in an async factory are
+	// awaited; those queued in event handlers are not.
+	const initialCfg = await refreshConfig();
+	registerMoaProvider(pi, initialCfg, { ctxRef, cache, getConfig: () => configState.current ?? initialCfg });
+
+	pi.on("session_start", async (_event, ctx) => {
+		ctxRef.current = ctx;
+		// Re-read on each session in case the user edited moa.json.
+		await refreshConfig();
+	});
+
+	// New user turn boundary: clear the per-turn reference cache so refs run
+	// fresh for the next turn. (Within a turn, tool-loop iterations reuse it.)
+	pi.on("model_select", () => cache.clear());
 
 	pi.registerCommand("moa", {
 		description: "Run a one-shot Mixture of Agents pass over your prompt",
@@ -28,16 +58,61 @@ export default function (pi: ExtensionAPI) {
 			await runMoaCommand(args, ctx, pi);
 		},
 	});
+
+	function registerMoaProvider(
+		pi: ExtensionAPI,
+		cfg: NormalizedConfig,
+		deps: { ctxRef: CtxRef; cache: TurnCache; getConfig: () => NormalizedConfig },
+	) {
+		const presetNames = Object.keys(cfg.presets);
+		if (presetNames.length === 0) return;
+
+		const onProgress = (text: string | undefined) => {
+			const ctxNow = ctxRef.current as ExtensionContext | null;
+			if (ctxNow && "ui" in ctxNow) {
+				(ctxNow as unknown as { ui: { setStatus: (k: string, t: string | undefined) => void } })
+					.ui.setStatus(PROVIDER_NAME, text);
+			}
+		};
+
+		const streamSimple = makeMoaStreamFacade({
+			getConfig: deps.getConfig,
+			ctxRef: deps.ctxRef,
+			cache: deps.cache,
+			onProgress: onProgress as any,
+		});
+
+		pi.registerProvider(PROVIDER_NAME, {
+			name: "Mixture of Agents",
+			// api + baseUrl are REQUIRED for the model to surface in the picker,
+			// even though streamSimple owns the actual request.
+			api: "openai-completions",
+			baseUrl: "https://moa.local/v1",
+			apiKey: "moa-virtual-provider",
+			models: presetNames.map((name) => ({
+				id: name,
+				name: `MoA: ${name}`,
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: cfg.presets[name].max_tokens,
+			})),
+			streamSimple,
+		});
+	}
 }
 
-async function runMoaCommand(args: string, ctx: ExtensionCommandContext, pi: ExtensionAPI): Promise<void> {
+async function runMoaCommand(args: string, ctx: ExtensionContext, pi: ExtensionAPI): Promise<void> {
 	const prompt = args.trim();
+	const setStatus = (text: string | undefined) =>
+		(ctx as unknown as { ui: { setStatus: (k: string, t: string | undefined) => void } })
+			.ui.setStatus(PROVIDER_NAME, text);
+
 	if (!prompt) {
 		ctx.ui.notify("Usage: /moa <prompt>  (runs refs + aggregator once, model unchanged)", "info");
 		return;
 	}
-
-	const setStatus = (text: string | undefined) => ctx.ui.setStatus("moa", text);
 
 	try {
 		setStatus("loading config…");
@@ -49,7 +124,6 @@ async function runMoaCommand(args: string, ctx: ExtensionCommandContext, pi: Ext
 			return;
 		}
 
-		// Build the advisory view refs will see: trimmed transcript + this turn.
 		const transcript = readTranscript(ctx);
 		const advisory: AdvisoryMessage[] = [
 			...trimForReferences(transcript as Parameters<typeof trimForReferences>[0]),
@@ -64,7 +138,7 @@ async function runMoaCommand(args: string, ctx: ExtensionCommandContext, pi: Ext
 			advisory,
 			call,
 			mode: "oneshot",
-			signal: ctx.signal,
+			signal: (ctx as unknown as { signal?: AbortSignal }).signal,
 			onProgress: (index, total, phase, label) => {
 				if (phase === "ref-start") setStatus(`ref ${index + 1}/${total}: ${label}`);
 				else if (phase === "aggregating") setStatus(`aggregating: ${label}`);
@@ -72,10 +146,6 @@ async function runMoaCommand(args: string, ctx: ExtensionCommandContext, pi: Ext
 		});
 		setStatus(undefined);
 
-		// Inject guidance + the user's prompt as a user message. The active
-		// model answers; MoA never switched it. guidance already carries the
-		// [Mixture of Agents reference context] header (or is empty when no
-		// usable refs, in which case we just send the prompt).
 		const message = guidance ? `${guidance}\n\n---\n\n${prompt}` : prompt;
 		pi.sendUserMessage(message);
 	} catch (e) {
@@ -85,11 +155,7 @@ async function runMoaCommand(args: string, ctx: ExtensionCommandContext, pi: Ext
 	}
 }
 
-/**
- * Read the current session branch as a list of {role, content} entries.
- * Falls back to an empty list if the session manager exposes nothing.
- */
-function readTranscript(ctx: ExtensionCommandContext): unknown[] {
+function readTranscript(ctx: ExtensionContext): unknown[] {
 	const sm = ctx.sessionManager as unknown as {
 		getBranch?: () => unknown[];
 		getEntries?: () => unknown[];
