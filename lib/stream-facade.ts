@@ -1,7 +1,7 @@
 /**
  * Session-mode stream facade for pi-mixture-of-agents.
  *
- * This is the direct analogue of Hermes's MoAChatCompletions.create(): a
+ * This is the session-mode entry point, the direct analogue of the MoA reference's
  * streamSimple that owns the request lifecycle. When a `moa/<preset>` model
  * is selected, Pi calls this function with the full context (messages +
  * tools). We:
@@ -115,7 +115,7 @@ export function makeMoaStreamFacade(deps: FacadeDeps) {
  * block appended at the tail of the last user message. The single aggregator
  * call in the facade then answers using that context.
  *
- * Session mode (mirrors Hermes MoAChatCompletions.create): the aggregator IS
+ * Session mode (the aggregator IS
  * the acting model. We do NOT call it twice; we just inject the reference
  * text as background and let the one aggregator call in moaStream answer.
  *

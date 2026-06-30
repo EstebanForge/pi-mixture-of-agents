@@ -1,16 +1,15 @@
 /**
  * Aggregator prompts for pi-mixture-of-agents.
  *
- * Hermes uses TWO meaningfully different aggregator prompt strategies:
+ * The MoA technique uses two meaningfully different aggregator prompt
+ * strategies:
  *
- *  1. One-shot  (agent/moa_loop.py aggregate_moa_context) — the aggregator
- *     synthesizes refs into ADVISORY guidance for the main agent. It must NOT
- *     answer the user directly. The main agent loop then consumes that
- *     guidance and produces the real answer.
+ *  1. One-shot — the aggregator synthesizes refs into ADVISORY guidance for
+ *     the main agent. It must NOT answer the user directly. The main agent
+ *     loop then consumes that guidance and produces the real answer.
  *
- *  2. Session   (agent/moa_loop.py MoAChatCompletions.create) — the aggregator
- *     IS the acting model. It answers the user or calls tools directly, with
- *     the reference context appended as background.
+ *  2. Session — the aggregator IS the acting model. It answers the user or
+ *     calls tools directly, with the reference context appended as background.
  *
  * The block wrapper `[Mixture of Agents reference context]` is the same in
  * both; only the surrounding instruction differs.
@@ -20,15 +19,15 @@ import type { ReferenceResult } from "./types";
 /** Header used on the injected guidance block (both modes). */
 export const GUIDANCE_HEADER = "[Mixture of Agents reference context]";
 
-/** Hermes aggregate_moa_context aggregator instruction (verbatim intent). */
+/** One-shot aggregator instruction: synthesize advisory guidance (no direct answer). */
 const ONE_SHOT_INSTRUCTION = [
 	"You are the aggregator in a Mixture of Agents process.",
-	"Synthesize the reference responses below into concise, actionable guidance for the main Hermes agent.",
+	"Synthesize the reference responses below into concise, actionable guidance for the main agent.",
 	"Focus on next steps, tool-use strategy, risks, and any disagreements.",
 	"Do not answer the user directly unless that is all that is needed.",
 ].join(" ");
 
-/** MoAChatCompletions.create aggregator instruction: it IS the acting model. */
+/** Session-mode aggregator instruction: it IS the acting model. */
 export const SESSION_INSTRUCTION = [
 	"You are the acting model in a Mixture of Agents process.",
 	"Reference model analyses are provided below as background context.",

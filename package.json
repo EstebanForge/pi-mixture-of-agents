@@ -1,7 +1,7 @@
 {
   "name": "@estebanforge/pi-mixture-of-agents",
-  "version": "0.1.0",
-  "description": "Mixture of Agents for Pi. Registers a virtual `moa` provider (presets selectable in /model) and a `/moa` command that runs one-shot passes plus a drill-down preset menu. Each preset fans out N reference models in parallel over a trimmed transcript, an aggregator synthesizes their outputs into guidance appended at the tail, and the aggregator becomes the acting model with the full tool schema intact. Ports Hermes Agent's MoA technique (https://github.com/NousResearch/hermes-agent).",
+  "version": "1.0.0",
+  "description": "Mixture of Agents for Pi. Registers a virtual `moa` provider (presets selectable in /model) and a `/moa` command that runs one-shot passes plus a drill-down preset menu. Each preset fans out N reference models in parallel over a trimmed transcript, an aggregator synthesizes their outputs into guidance appended at the tail, and the aggregator becomes the acting model with the full tool schema intact.",
   "keywords": [
     "pi-package",
     "pi-extension",

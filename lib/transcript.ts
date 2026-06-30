@@ -8,7 +8,7 @@
  * is a stable function of the stable history) makes the dedup signature
  * reliable across iterations.
  *
- * Mirrors Hermes agent/moa_loop.py: trim non-text content, skip non-text
+ * Mirrors moa_loop.py: trim non-text content, skip non-text
  * roles, hand the reference only role-labeled plain text.
  */
 

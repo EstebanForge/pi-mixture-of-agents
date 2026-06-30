@@ -3,7 +3,7 @@
  *
  * No Pi imports here. The caller injects a `CallSlot` (see slots.ts) so this
  * module is unit-testable with a mock and stays free of network/model-registry
- * concerns. Mirrors Hermes agent/moa_loop.py orchestration:
+ * Mirrors the MoA `moa_loop.py` orchestration:
  *
  *   - run references in parallel, preserving slot order
  *   - per-reference failures are tolerated (folded into results, do not abort)
@@ -40,7 +40,7 @@ export interface RunReferencesArgs {
  * Fan out reference calls in parallel, preserving slot order.
  *
  * Per-slot try/catch: a failure becomes `{ ok:false, error }` and does NOT
- * abort siblings (mirrors Hermes failure tolerance). Abort propagates: when
+ * abort siblings (mirrors the MoA reference's failure tolerance). Abort propagates: when
  * `signal` aborts, pending/rejected calls surface as failed results.
  */
 export async function runReferences(args: RunReferencesArgs): Promise<ReferenceResult[]> {
@@ -86,7 +86,7 @@ export interface AggregateArgs {
  * Returns the raw text the aggregator produced. The caller (facade or
  * one-shot command) decides how to inject / emit it. When there are no usable
  * references, the guidance block is omitted and the aggregator is called with
- * just the instruction (mirrors Hermes enabled:false / empty-refs path).
+ * just the instruction (mirrors the disabled / empty-refs path).
  */
 export async function aggregate(args: AggregateArgs): Promise<string> {
 	const { refs, mode, instruction, call, aggregator, temperature, maxTokens, signal } = args;

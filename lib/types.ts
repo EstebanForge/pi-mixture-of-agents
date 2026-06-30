@@ -1,8 +1,7 @@
 /**
  * Config types for pi-mixture-of-agents.
  *
- * Mirrors the Hermes `moa` config shape (https://github.com/NousResearch/hermes-agent,
- * hermes_cli/config.py:2093) adapted to JSON. A preset is an explicit list of
+ * Mirrors the reference `moa` config shape adapted to JSON. A preset is an explicit list of
  * reference slots plus one aggregator slot; slots are {provider, model} pairs
  * so presets can mix providers and use multiple models from the same provider.
  */

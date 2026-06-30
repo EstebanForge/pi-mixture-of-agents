@@ -30,7 +30,7 @@ type PiMessage = { role: string; content: unknown };
  *
  * Returns the model's text response. Throws on any failure (the engine
  * catches per-slot and folds the error into the reference results, mirroring
- * Hermes's failure tolerance).
+ * the reference's failure tolerance).
  *
  * Recursion guard (runtime safety net, mirrors moa_loop.py:142): a slot whose
  * provider is the virtual `moa` provider is skipped with a labelled note

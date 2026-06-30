@@ -90,6 +90,12 @@ export default async function (pi: ExtensionAPI) {
 		deps: { ctxRef: CtxRef; cache: TurnCache; getConfig: () => NormalizedConfig },
 	) {
 		const presetNames = Object.keys(cfg.presets);
+		// Unregister first so stale model rows from a prior session can't survive:
+		// pi-ai's registry appends on re-registration, so a renamed/deleted preset
+		// (e.g. moa/glm-5.2 → moa/SOTA Exp) would otherwise leave a dangling row
+		// that can win first-turn dispatch and surface as "unknown MoA preset".
+		//_unregisterProvider(PROVIDER_NAME) is a no-op if nothing is registered.
+		pi.unregisterProvider(PROVIDER_NAME);
 		if (presetNames.length === 0) return;
 
 		const onProgress = (text: string | undefined) => {

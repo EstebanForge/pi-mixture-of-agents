@@ -6,7 +6,7 @@
  *   - project: <cwd>/.pi/moa.json   (CONFIG_DIR_NAME aware)
  *
  * Validation enforces the recursion guard: any slot with provider === "moa"
- * is rejected (Hermes blocks recursive MoA trees, moa_loop.py:142). This is
+ * is rejected (the reference blocks recursive MoA trees, moa_loop.py:142). This is
  * the first line of defense; the runtime also skips such slots with a note.
  */
 import { readFile, writeFile, mkdir } from "node:fs/promises";
@@ -22,7 +22,7 @@ import {
 	RecursionError,
 } from "./types";
 
-/** Default per-preset field values (mirrors Hermes hermes_cli/moa_config.py). */
+/** Default per-preset field values (mirrors the reference's moa_config.py). */
 export const DEFAULTS = {
 	reference_temperature: 0.6,
 	aggregator_temperature: 0.4,

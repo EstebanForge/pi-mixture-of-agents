@@ -1,7 +1,7 @@
 /**
  * Per-turn reference dedup.
  *
- * Mirrors Hermes agent/moa_loop.py:347-369. The agent loop calls the MoA
+ * Mirrors moa_loop.py:347-369. The agent loop calls the MoA
  * facade once per tool-loop iteration within a single user turn. The advisory
  * view (trimmed transcript) does not change across those iterations, so
  * re-running the reference fan-out each time would multiply API cost for no
@@ -18,7 +18,7 @@ import type { ReferenceResult, Slot } from "./types";
 /**
  * Build the cache key for an advisory view under a given preset/slot set.
  *
- * Matches the Hermes shape: `(preset_name, sha256(advisory), slot_labels)`.
+ * Matches the reference shape: `(preset_name, sha256(advisory), slot_labels)`.
  * The advisory signature is SHA-256 over `\u0000`-joined `role:content` pairs,
  * matching moa_loop.py:351-355.
  */
