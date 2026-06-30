@@ -8,6 +8,7 @@ import {
 	normalizeConfig,
 	normalizePreset,
 	removePreset,
+	renamePreset,
 	resolvePreset,
 	upsertPreset,
 } from "../lib/config";
@@ -239,5 +240,41 @@ describe("upsertPreset / removePreset", () => {
 		const next = removePreset(base, "default");
 		expect(next.presets).toEqual({});
 		expect(next.default_preset).toBe("default");
+	});
+});
+
+describe("renamePreset", () => {
+	const base: MoaConfig = {
+		default_preset: "default",
+		presets: { default: validPreset, other: validPreset },
+	};
+
+	it("re-keys the preset preserving insertion order", () => {
+		const next = renamePreset(base, "default", "renamed");
+		expect(Object.keys(next!.presets!)).toEqual(["renamed", "other"]);
+		expect(next!.presets!.renamed).toEqual(validPreset);
+		expect(next!.presets).not.toHaveProperty("default");
+	});
+
+	it("moves the default pointer when the default was renamed", () => {
+		const next = renamePreset(base, "default", "renamed");
+		expect(next!.default_preset).toBe("renamed");
+	});
+
+	it("leaves the default pointer untouched when a non-default was renamed", () => {
+		const next = renamePreset(base, "other", "renamed");
+		expect(next!.default_preset).toBe("default");
+	});
+
+	it("rejects a collision with an existing name", () => {
+		expect(renamePreset(base, "default", "other")).toBeUndefined();
+	});
+
+	it("returns the input unchanged on a no-op rename", () => {
+		expect(renamePreset(base, "default", "default")).toBe(base);
+	});
+
+	it("returns undefined when the source does not exist", () => {
+		expect(renamePreset(base, "ghost", "renamed")).toBeUndefined();
 	});
 });

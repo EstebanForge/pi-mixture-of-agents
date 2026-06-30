@@ -143,7 +143,7 @@ export function resolvePreset(config: NormalizedConfig, name?: string): Normaliz
 export function formatPresetList(config: NormalizedConfig): string {
 	const names = Object.keys(config.presets);
 	if (names.length === 0) {
-		return "No MoA presets configured. Use /moa-configure to create one.";
+		return "No MoA presets configured. Run /moa to create one (TUI), or edit ~/.pi/agent/moa.json directly.";
 	}
 	const lines = names.map((name) => {
 		const p = config.presets[name];
@@ -177,6 +177,27 @@ export function removePreset(raw: MoaConfig, name: string): MoaConfig {
 	return { default_preset: defaultPreset, presets };
 }
 
+/**
+ * Rename a preset key. Preserves insertion order and keeps the default pointer
+ * valid. Returns undefined if the source doesn't exist or the target name is
+ * already taken (caller surfaces the collision to the user).
+ */
+export function renamePreset(raw: MoaConfig, from: string, to: string): MoaConfig | undefined {
+	if (from === to) return raw;
+	const presets = raw.presets ?? {};
+	const preset = presets[from];
+	if (!preset) return undefined;
+	if (presets[to]) return undefined; // target name already in use
+
+	// Rebuild preserving insertion order: same keys, but `from` becomes `to`.
+	const renamed: Record<string, Preset> = {};
+	for (const [key, value] of Object.entries(presets)) {
+		renamed[key === from ? to : key] = value;
+	}
+	const defaultPreset = raw.default_preset === from ? to : raw.default_preset;
+	return { default_preset: defaultPreset, presets: renamed };
+}
+
 async function readJson(file: string): Promise<MoaConfig | null> {
 	try {
 		const txt = await readFile(file, "utf8");
@@ -192,8 +213,13 @@ async function readJson(file: string): Promise<MoaConfig | null> {
  * @param home    user home dir (defaults to os.homedir()).
  * @param cwd     project dir (defaults to process.cwd()).
  */
+/** Absolute path to the user-scoped moa.json (~/.pi/agent/moa.json). */
+export function userConfigPath(home?: string): string {
+	return path.join(home ?? findHome(), ".pi", "agent", "moa.json");
+}
+
 export async function loadConfig(home?: string, cwd?: string): Promise<NormalizedConfig> {
-	const userFile = path.join(home ?? findHome(), ".pi", "agent", "moa.json");
+	const userFile = userConfigPath(home);
 	const projectFile = path.join(cwd ?? process.cwd(), CONFIG_DIR_NAME, "moa.json");
 
 	const [userRaw, projectRaw] = await Promise.all([readJson(userFile), readJson(projectFile)]);
@@ -210,9 +236,8 @@ export async function loadConfig(home?: string, cwd?: string): Promise<Normalize
 
 /** Save a raw config object to the user file, creating the dir if needed. */
 export async function saveConfig(cfg: MoaConfig, home?: string): Promise<void> {
-	const dir = path.join(home ?? findHome(), ".pi", "agent");
-	await mkdir(dir, { recursive: true });
-	const file = path.join(dir, "moa.json");
+	const file = userConfigPath(home);
+	await mkdir(path.dirname(file), { recursive: true });
 	await writeFile(file, JSON.stringify(cfg, null, 2) + "\n", "utf8");
 }
 

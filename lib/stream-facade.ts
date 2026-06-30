@@ -122,7 +122,7 @@ export function makeMoaStreamFacade(deps: FacadeDeps) {
  * When the preset is disabled or no usable refs exist, messages are returned
  * unchanged so the aggregator runs alone.
  */
-async function buildAggregatorMessages(args: {
+export async function buildAggregatorMessages(args: {
 	preset: NormalizedPreset;
 	presetName: string;
 	messages: any[];
@@ -173,7 +173,7 @@ function renderRefContext(refs: readonly ReferenceResult[]): string {
 }
 
 /** Append the guidance block at the tail of the last user message (cache-safe). */
-function appendGuidanceTail(messages: any[], guidance: string): any[] {
+export function appendGuidanceTail(messages: any[], guidance: string): any[] {
 	if (!guidance.trim()) return messages;
 	const copy = messages.map((m) => ({
 		...m,
@@ -182,7 +182,12 @@ function appendGuidanceTail(messages: any[], guidance: string): any[] {
 	for (let i = copy.length - 1; i >= 0; i--) {
 		if (copy[i].role === "user") {
 			const block = { type: "text", text: `\n\n${guidance}` };
-			copy[i].content = Array.isArray(copy[i].content) ? [...copy[i].content, block] : [block];
+			const existing = copy[i].content;
+			// String content (some transcripts carry it) must be wrapped before the
+			// guidance block, or the user's text is silently dropped.
+			copy[i].content = Array.isArray(existing)
+				? [...existing, block]
+				: [existing != null && typeof existing !== "string" ? existing : { type: "text", text: String(existing ?? "") }, block];
 			break;
 		}
 	}
@@ -201,7 +206,11 @@ export function terminalEventFor(stopReason: string | undefined):
 	if (reason === "error" || reason === "aborted") {
 		return { kind: "error", reason };
 	}
-	return { kind: "done", reason: reason as "stop" | "length" | "toolUse" };
+	// Unknown stop reasons (e.g. a future provider's "content_filter") coerce
+	// to a known done reason instead of leaking an out-of-union string.
+	const knownDone = ["stop", "length", "toolUse"] as const;
+	const safe = (knownDone as readonly string[]).includes(reason) ? reason : "stop";
+	return { kind: "done", reason: safe as "stop" | "length" | "toolUse" };
 }
 
 /** Emit a successful AssistantMessage through the stream (v1: non-streaming). */

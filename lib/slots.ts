@@ -102,9 +102,14 @@ export async function callAggregator(
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	if (auth.ok === false) throw new Error(auth.error);
 
-	// `messages` / `tools` come from the Pi Context shape; the `as never` is a
-	// pragmatic bridge across pi-ai's generic Message/Tool types. The fields
-	// themselves are structurally compatible at runtime.
+	// TYPE-ESCAPE HATCH: `messages` / `tools` come from Pi's Context shape;
+	// pi-ai's `complete()` is generic over KnownProvider/Message/Tool, which
+	// collapses to `never` for runtime string providers. `as never` bypasses
+	// the generic here on purpose — the structures are structurally compatible
+	// at runtime, and a future pi-ai field rename would surface as a runtime
+	// shape mismatch, not a compile error. This is a known, accepted trade-off
+	// (the same bridge makeCallSlot's getModel loosening makes). Do not widen
+	// without verifying the live pi-ai Context shape.
 	return complete(
 		model,
 		{

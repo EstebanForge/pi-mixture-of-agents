@@ -10,25 +10,27 @@ Ports the MoA technique from [Hermes Agent](https://github.com/NousResearch/herm
 pi install npm:@estebanforge/pi-mixture-of-agents
 ```
 
-Then `/reload` in Pi (or restart), and pick a preset from `/model` under the `Mixture of Agents` provider, use `/moa <prompt>` for a one-shot, or manage presets with `/moa-list` / `/moa-configure` / `/moa-delete`.
+Then `/reload` in Pi (or restart), and pick a preset from `/model` under the `Mixture of Agents` provider, use `/moa <prompt>` for a one-shot, or run `/moa` to open the settings screen.
 
 Reference and aggregator models must already be configured in Pi (`~/.pi/agent/models.json` or a provider with credentials). The extension does not ship API keys.
 
 ## Commands
 
+Two faces, one command.
+
 | Command | Description |
 | --- | --- |
-| `/moa <prompt>` | One-shot pass: runs refs + aggregator once over your prompt, injects guidance as a user message, and leaves the active model unchanged |
-| `/moa-list` | Print every configured preset (refs, aggregator, default marker, enabled flag) |
-| `/moa-configure [name]` | Interactively create or update a preset: pick aggregator, 0-5 references from the live catalog, and the enabled toggle |
-| `/moa-delete [name]` | Confirm and remove a preset; `default_preset` falls back to the next remaining |
+| `/moa` | Open a drill-down menu (TUI): **Browse presets…** (or an empty-state note when none exist) and **New preset…**. Browsing a preset opens its detail view — aggregator/references (read-only), `enabled`, `default`, `Edit refs/aggregator…`, and `Delete…`. One reload per visit. |
+| `/moa <prompt>` | One-shot pass: runs refs + aggregator once over your prompt, injects guidance as a user message, and leaves the active model unchanged. Any argument is treated as a prompt, so `/moa explain X` and `/moa delete my branch` both run as one-shots. |
+
+Management (browse / create / edit / delete / enable / set-default) lives as **rows inside the `/moa` menu**, not as typed subcommands, so the one-shot never collides with a reserved word. The menu is a terminal-only `SettingsList` (same component as `/settings`); in headless or `pi -p` mode, `/moa` falls back to the read-only preset listing.
 
 > Slash commands only dispatch in an interactive Pi session (not in `pi -p` print mode). Selecting `moa/<preset>` from `/model` works in every mode.
 
 ## How it works
 
 ```
-┌─ Reference fan-out (parallel, cheap) ──────────────────┐
+┌─ Reference fan-out (parallel) ────────────────────────┐
 │  ref A           ref B           ...                    │
 │  ↑ no tool schema, no system prompt, trimmed transcript │
 └───────────────┬────────────────────────────────────────┘
@@ -87,7 +89,7 @@ Slots are explicit `{provider, model}` pairs, so you can mix providers and use m
 ## v1 limitations
 
 - **Aggregator is non-streaming.** Reference calls are non-streaming by design; the aggregator is also called via `complete()` and emitted through a one-shot `AssistantMessageEventStream`. You see the full answer when the aggregator finishes, not token-by-token. Cross-provider streaming re-emission is planned for v2.
-- **Token cost.** A single model iteration can involve N reference calls plus the aggregator call. Mitigate with cheap reference models and per-turn dedup.
+- **Token cost.** A single model iteration can involve N reference calls plus the aggregator call. Mitigate with fewer/smaller reference models, `enabled: false` to run the aggregator alone, or per-turn dedup.
 - **No weighted voting or routing.** All configured references always run; aggregation is pure textual synthesis. (Hermes does the same.)
 
 ## Why
