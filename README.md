@@ -1,6 +1,6 @@
 # @estebanforge/pi-mixture-of-agents
 
-**Mixture of Agents** for Pi. Registers a virtual `moa` provider (presets selectable in `/model`) plus a `/moa` one-shot command. Each preset fans out N reference models in parallel over a trimmed transcript, an aggregator synthesizes their outputs into private guidance appended at the message tail, and the aggregator becomes the acting model with the full tool schema intact.
+**Mixture of Agents** for Pi. Registers a virtual `moa` provider (presets selectable in `/model`) and a single `/moa` command that both runs one-shot passes and manages presets through a drill-down menu. Each preset fans out N reference models in parallel over a trimmed transcript, an aggregator synthesizes their outputs into private guidance appended at the message tail, and the aggregator becomes the acting model with the full tool schema intact.
 
 Ports the MoA technique from [Hermes Agent](https://github.com/NousResearch/hermes-agent) (`agent/moa_loop.py`). Not an LLM; an orchestration layer over models you already have configured.
 
@@ -10,7 +10,7 @@ Ports the MoA technique from [Hermes Agent](https://github.com/NousResearch/herm
 pi install npm:@estebanforge/pi-mixture-of-agents
 ```
 
-Then `/reload` in Pi (or restart), and pick a preset from `/model` under the `Mixture of Agents` provider, use `/moa <prompt>` for a one-shot, or run `/moa` to open the settings screen.
+Then `/reload` in Pi (or restart), and pick a preset from `/model` under the `Mixture of Agents` provider, use `/moa <prompt>` for a one-shot, or run `/moa` to open the preset menu.
 
 Reference and aggregator models must already be configured in Pi (`~/.pi/agent/models.json` or a provider with credentials). The extension does not ship API keys.
 
@@ -84,7 +84,7 @@ Presets live in `~/.pi/agent/moa.json` (project override at `.pi/moa.json`):
 }
 ```
 
-Slots are explicit `{provider, model}` pairs, so you can mix providers and use multiple models from the same provider. Use `/moa-configure` to build a preset interactively from the models already in your catalog.
+Slots are explicit `{provider, model}` pairs, so you can mix providers and use multiple models from the same provider. Run `/moa` and pick **New preset…** to build one interactively from the models already in your catalog; the picker is searchable, so you don't have to page through the whole catalog.
 
 ## v1 limitations
 
@@ -92,9 +92,15 @@ Slots are explicit `{provider, model}` pairs, so you can mix providers and use m
 - **Token cost.** A single model iteration can involve N reference calls plus the aggregator call. Mitigate with fewer/smaller reference models, `enabled: false` to run the aggregator alone, or per-turn dedup.
 - **No weighted voting or routing.** All configured references always run; aggregation is pure textual synthesis. (Hermes does the same.)
 
-## Why
+## Why this exists
 
 Hermes's own docs report that on their HermesBench, a two-model MoA preset outscores either component model alone: MoA **0.8202** vs `claude-opus-4.8` at 0.7607 vs `gpt-5.5` at 0.7412. The takeaway is that aggregating a second perspective lifts quality on hard tasks rather than just averaging the two. (These are Hermes's published numbers, not benchmarks we ran; see their [Mixture of Agents docs](https://hermes-agent.nousresearch.com/docs/user-guide/features/mixture-of-agents).)
+
+## Compatibility
+
+- Pi (`@earendil-works/pi-coding-agent`) — any version with `registerProvider` taking effect post-bind, the `session_start` / `session_shutdown` / `model_select` hooks, and `ctx.ui.custom` for the settings menu. `@earendil-works/pi-tui` provides the `SettingsList` component.
+- Reference and aggregator models — must already be configured in Pi (`~/.pi/agent/models.json` or a provider with credentials). The extension resolves credentials through Pi's standard auth storage; it does not ship or configure API keys.
+- Headless / `pi -p` — `/moa` falls back to a read-only preset listing (the menu and picker are terminal-only). Selecting `moa/<preset>` from `/model` works in every mode.
 
 ## License
 
