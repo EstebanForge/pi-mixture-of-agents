@@ -25,6 +25,16 @@ import { makeMoaStreamFacade, type CtxRef } from "../lib/stream-facade";
 
 const PROVIDER_NAME = "moa";
 
+// Status bar glyph prefixed to every setStatus payload. ⛙ (White Left Lane
+// Merge) reads as N streams converging into one — the references fanning
+// out and the aggregator merging them back. Mirrors the icon-before-text
+// pattern pi-agentmemory uses for its status row. Defined once so every
+// call site — the provider's onProgress and the /moa command's wrapper —
+// stays in sync.
+const STATUS_ICON = "⛙";
+const formatStatus = (text: string | undefined): string | undefined =>
+	text === undefined ? undefined : `${STATUS_ICON} ${text}`;
+
 export default async function (pi: ExtensionAPI) {
 	// Mutable holder for the live ExtensionContext. streamSimple has no ctx
 	// in its signature, so the facade reads through this ref.
@@ -102,7 +112,7 @@ export default async function (pi: ExtensionAPI) {
 			const ctxNow = ctxRef.current as ExtensionContext | null;
 			if (ctxNow && "ui" in ctxNow) {
 				(ctxNow as unknown as { ui: { setStatus: (k: string, t: string | undefined) => void } })
-					.ui.setStatus(PROVIDER_NAME, text);
+					.ui.setStatus(PROVIDER_NAME, formatStatus(text));
 			}
 		};
 
@@ -115,9 +125,15 @@ export default async function (pi: ExtensionAPI) {
 
 		pi.registerProvider(PROVIDER_NAME, {
 			name: "Mixture of Agents",
-			// api + baseUrl are REQUIRED for the model to surface in the picker,
-			// even though streamSimple owns the actual request.
-			api: "openai-completions",
+			// api must be a UNIQUE identifier ("moa"), NOT a real api like
+			// "openai-completions". pi-coding-agent bridges registerProvider into
+			// pi-ai's global apiProviderRegistry keyed by `api`; registering under
+			// "openai-completions" clobbers the builtin and hijacks every
+			// OpenAI-compatible model (e.g. zai) into moaStream, surfacing as
+			// "unknown MoA preset: <model-id>". Our own moa/<preset> models inherit
+			// this api so they dispatch back here to streamSimple. baseUrl/apiKey
+			// are required placeholders so the models surface in the picker.
+			api: PROVIDER_NAME,
 			baseUrl: "https://moa.local/v1",
 			apiKey: "moa-virtual-provider",
 			models: presetNames.map((name) => ({
@@ -408,7 +424,7 @@ async function runMoaCommand(args: string, ctx: ExtensionContext, pi: ExtensionA
 	const prompt = args.trim();
 	const setStatus = (text: string | undefined) =>
 		(ctx as unknown as { ui: { setStatus: (k: string, t: string | undefined) => void } })
-			.ui.setStatus(PROVIDER_NAME, text);
+			.ui.setStatus(PROVIDER_NAME, formatStatus(text));
 
 	if (!prompt) {
 		ctx.ui.notify("Usage: /moa <prompt>  (runs refs + aggregator once, model unchanged)", "info");

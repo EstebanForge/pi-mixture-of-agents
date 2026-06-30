@@ -11,7 +11,6 @@ import type { NormalizedPreset, SlotContext } from "../lib/types";
 
 const state = { complete: vi.fn() };
 vi.mock("@earendil-works/pi-ai/compat", () => ({
-	getModel: () => ({ id: "m", provider: "p" }),
 	complete: (...args: unknown[]) => state.complete(...args),
 }));
 
@@ -28,6 +27,7 @@ const preset: NormalizedPreset = {
 
 const ctx: SlotContext = {
 	modelRegistry: {
+		find: () => ({ id: "m", provider: "p" }),
 		getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k", headers: undefined, env: undefined }),
 	},
 };
@@ -75,5 +75,17 @@ describe("buildAggregatorMessages cache-hit", () => {
 		const out = await buildAggregatorMessages({ preset: disabled, presetName: "default", messages, ctx, cache });
 		expect(state.complete).not.toHaveBeenCalled();
 		expect(out).toBe(messages); // returned unchanged
+	});
+
+	it("passes messages through unchanged when every reference fails", async () => {
+		const cache = new TurnCache();
+		const messages = [{ role: "user", content: [{ type: "text", text: "q" }] }];
+		// Every ref fails: complete rejects, so hasUsableGuidance stays false
+		// and the guidance block is omitted (aggregator runs alone).
+		state.complete.mockReset();
+		state.complete.mockRejectedValue(new Error("boom"));
+
+		const out = await buildAggregatorMessages({ preset, presetName: "default", messages, ctx, cache });
+		expect(out).toBe(messages); // unchanged: no guidance appended
 	});
 });

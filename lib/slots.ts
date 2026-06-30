@@ -8,19 +8,24 @@
  * unit-testable without touching the network. This module is the only file
  * that imports pi-ai/compat and the model registry.
  */
-import { complete, getModel as _getModel } from "@earendil-works/pi-ai/compat";
+import { complete } from "@earendil-works/pi-ai/compat";
 import type { CallSlot, Slot, SlotContext } from "./types";
 
 /**
- * pi-ai's getModel is generic over KnownProvider + keyof MODELS[T], which
- * collapses to `never` when the provider is a runtime string. Slots are
- * user-configured, so we intentionally take the loose path and resolve at
- * runtime; a catalog miss is handled as a thrown error below.
+ * Resolve a slot's {provider, model} to a live model handle via Pi's
+ * ModelRegistry, NOT pi-ai's static catalog. The registry is the single
+ * runtime source of truth: built-in providers + dynamically registered ones
+ * (custom bridges like `claude-bridge`, the virtual `moa` provider itself)
+ * that pi-ai's build-time getModel cannot see. A miss surfaces as a thrown
+ * error so the engine can fold it into the per-slot failure result.
  */
-const getModel = _getModel as unknown as (
-	provider: string,
-	modelId: string,
-) => ReturnType<typeof _getModel> | undefined;
+function resolveModel(ctx: SlotContext, slot: Slot, where = "model"): unknown {
+	const model = ctx.modelRegistry.find(slot.provider, slot.model);
+	if (!model) {
+		throw new Error(`${where} ${slot.provider}/${slot.model} not in catalog`);
+	}
+	return model;
+}
 
 /** Message shape accepted by pi-ai complete(): role + content array. */
 type PiMessage = { role: string; content: unknown };
@@ -42,10 +47,7 @@ export function makeCallSlot(ctx: SlotContext): CallSlot {
 			throw new Error("[skipped: MoA presets cannot recursively reference MoA]");
 		}
 
-		const model = getModel(slot.provider, slot.model);
-		if (!model) {
-			throw new Error(`model ${slot.provider}/${slot.model} not in catalog`);
-		}
+		const model = resolveModel(ctx, slot) as Parameters<typeof complete>[0];
 
 		const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 		if (auth.ok === false) {
@@ -96,8 +98,7 @@ export async function callAggregator(
 	if (slot.provider.toLowerCase() === "moa") {
 		throw new Error("[skipped: MoA aggregator cannot be a MoA preset]");
 	}
-	const model = getModel(slot.provider, slot.model);
-	if (!model) throw new Error(`aggregator model ${slot.provider}/${slot.model} not in catalog`);
+	const model = resolveModel(ctx, slot, "aggregator model") as Parameters<typeof complete>[0];
 
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	if (auth.ok === false) throw new Error(auth.error);
@@ -107,9 +108,8 @@ export async function callAggregator(
 	// collapses to `never` for runtime string providers. `as never` bypasses
 	// the generic here on purpose — the structures are structurally compatible
 	// at runtime, and a future pi-ai field rename would surface as a runtime
-	// shape mismatch, not a compile error. This is a known, accepted trade-off
-	// (the same bridge makeCallSlot's getModel loosening makes). Do not widen
-	// without verifying the live pi-ai Context shape.
+	// shape mismatch, not a compile error. This is a known, accepted trade-off.
+	// Do not widen without verifying the live pi-ai Context shape.
 	return complete(
 		model,
 		{

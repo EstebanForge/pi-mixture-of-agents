@@ -21,6 +21,7 @@ describe.skipIf(skip)("MoA engine integration (real model)", () => {
     // Fake ctx: ok:true with no key; pi-ai complete() does env injection.
     const fakeCtx = {
       modelRegistry: {
+        find: (_p: string, _m: string) => ({ id: _m, provider: _p }),
         getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: undefined, headers: undefined, env: undefined }),
       },
     };

@@ -69,9 +69,18 @@ export type CallSlot = (
 	opts: { temperature?: number; maxTokens?: number; signal?: AbortSignal },
 ) => Promise<string>;
 
-/** Minimal subset of Pi's ExtensionContext used for credential resolution. */
+/**
+ * Minimal subset of Pi's ExtensionContext used for slot resolution.
+ *
+ * `find` resolves a {provider, model} to a live model handle through Pi's
+ * ModelRegistry — the runtime source of truth that holds built-in providers
+ * AND dynamically registered ones (e.g. `claude-bridge`, the virtual `moa`
+ * provider) that pi-ai's static build-time catalog cannot see. The handle is
+ * opaque here so this module stays free of pi-ai type imports.
+ */
 export interface SlotContext {
 	modelRegistry: {
+		find(provider: string, modelId: string): unknown;
 		getApiKeyAndHeaders(model: unknown): Promise<
 			| { ok: true; apiKey?: string; headers?: Record<string, string>; env?: Record<string, string> }
 			| { ok: false; error: string }
